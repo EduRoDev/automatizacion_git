@@ -1,0 +1,32 @@
+# Test your FastAPI endpoints
+
+GET http://127.0.0.1:8000/
+Accept: application/json
+
+###
+
+GET http://127.0.0.1:8000/hello/User
+Accept: application/json
+
+###
+
+POST http://127.0.0.1:8000/github/webhook
+Content-Type: application/json
+X-GitHub-Event: pull_request
+
+{
+  "action": "opened",
+  "number": 1,
+  "pull_request": {
+    "number":1,
+    "title":"Prueba",
+    "state":"open",
+    "diff_url":"http://x/1.diff"
+  },
+  "repository": {
+    "full_name":"yo/repo"
+  }
+}
+
+###
+
