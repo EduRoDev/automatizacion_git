@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     app_id: str = ""
     private_key: str = ""
     log_level: str = "INFO"
+    api_key: str = ""
 
 
 @lru_cache
