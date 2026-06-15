@@ -1,14 +1,15 @@
 import logging
-from fastapi import APIRouter, Header, Request, status, HTTPException
+from fastapi import APIRouter, Header, Request, status, HTTPException, BackgroundTasks
 from app.models.github import PullRequestEvent
 from app.core.config import get_settings
 from app.core.security import verify
+from app.services.processor import process_pull_request
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.post("/webhook", tags=["webhook"], status_code=status.HTTP_200_OK)
-async def webhook(request: Request, x_github_event: str = Header(default=""), x_hub_signature_256: str | None = Header(default=None)):
+async def webhook(request: Request, x_github_event: str = Header(default=""), x_hub_signature_256: str | None = Header(default=None), background_tasks: BackgroundTasks = BackgroundTasks()):
     settings = get_settings()
     raw_body = await request.body()
 
@@ -34,8 +35,9 @@ async def webhook(request: Request, x_github_event: str = Header(default=""), x_
         logger.debug("Event '%s' not actionable", x_github_event)
         return {"msg": f"ignored: '{x_github_event}'"}
 
-    logger.info(f"Pull request #%s of %s recieved (action: %s)",
+    logger.info("Pull request #%s of %s recieved (action: %s)",
                 event.number, event.repository.full_name, event.action
     )
+    background_tasks.add_task(process_pull_request, event)
 
     return {"msg": "Pull request recieved", "pr": event.number}

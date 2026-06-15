@@ -39,11 +39,18 @@ class FileDiff:
 
     @property
     def added_lines(self) -> list[DiffLine]:
-        return [line for h in self.hunks for line in h.lines if line.type is LineType.ADDED]
+        return [
+            line for h in self.hunks for line in h.lines if line.type is LineType.ADDED
+        ]
 
     @property
     def removed_lines(self) -> list[DiffLine]:
-        return [line for h in self.hunks for line in h.lines if line.type is LineType.REMOVED]
+        return [
+            line
+            for h in self.hunks
+            for line in h.lines
+            if line.type is LineType.REMOVED
+        ]
 
 
 _HUNK_RE = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
@@ -103,8 +110,10 @@ def parser(diff_text: str) -> list[FileDiff]:
         elif line.startswith(" "):
             current_hunk.lines.append(
                 DiffLine(
-                    LineType.CONTEXT, line[1:],
-                    old_lineno=old_lineno, new_lineno=new_lineno,
+                    LineType.CONTEXT,
+                    line[1:],
+                    old_lineno=old_lineno,
+                    new_lineno=new_lineno,
                 )
             )
             old_lineno += 1
