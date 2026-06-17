@@ -7,11 +7,15 @@ class _Lenient(BaseModel):
 class Repository(_Lenient):
     full_name: str
 
+class Head(_Lenient):
+    sha: str
+
 class PullRequest(_Lenient):
     number: int
     title: str
     state: str
     diff_url: str
+    head: Head
 
 class PullRequestEvent(_Lenient):
     action: str

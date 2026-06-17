@@ -1,31 +1,62 @@
 import logging
+import asyncio
 from openrouter import OpenRouter
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
+MODEL = [
+    "openai/gpt-oss-20b:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "meta-llama/llama-4-scout:free",
+    "openrouter/free",
+]
 
-SYSTEM_PROMPT = """Eres un revisor de código experto. Te dan el diff de un \
-pull request y debes revisarlo. Enfócate en: bugs potenciales, problemas de \
-seguridad, código que pueda romper algo, y malas prácticas claras. Sé conciso \
-y concreto. Si el código está bien, dilo brevemente. No inventes problemas \
-que no existen. Responde en español."""
+TIMEOUT_SECONDS = 15
 
-async def review_diff(diff: str) -> str:
+SYSTEM_PROMPT = """Eres un revisor de código experto. Recibes el diff de un \
+pull request y debes revisarlo buscando: bugs potenciales, problemas de \
+seguridad, código que pueda romper algo, y malas prácticas claras.
+
+Respondes ÚNICAMENTE con un array JSON válido, sin texto antes ni después, \
+sin bloques de markdown. Cada elemento del array es una observación con \
+exactamente estos campos:
+- "path": la ruta del archivo (string), tal como aparece en el diff
+- "line": el número de línea en la versión NUEVA del archivo (entero)
+- "comment": tu observación concreta y breve (string, en español)
+
+Reglas importantes:
+- Usa SOLO números de línea que correspondan a líneas agregadas o de \
+contexto que aparecen en el diff. Nunca inventes líneas.
+- Si el código no tiene problemas, responde con un array vacío: []
+- No inventes observaciones para parecer útil. Calidad sobre cantidad.
+
+Ejemplo de respuesta válida:
+[{"path": "src/calc.py", "line": 12, "comment": "División sin validar cero"}]"""
+
+async def review_diff(diff_text: str) -> str:
     settings = get_settings()
-    api_key = settings.api_key
-    if not api_key:
-        logger.error("API key is not set in the environment variables.")
-        return "Error: API key is not configured."
 
-    async with OpenRouter (api_key=api_key) as client:
-        response = await client.chat.send_async(
-            model=MODEL,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": f"Revisa este diff:\n{diff}"}
-            ],
-        )
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": diff_text},
+    ]
 
-    return response.choices[0].message.content
+    async with OpenRouter(api_key=settings.api_key) as client:
+        for model in MODEL:
+            try:
+                logger.info("Intentando con el modelo %s...", model)
+                response = await asyncio.wait_for(
+                    client.chat.send_async(model=model, messages=messages),
+                    timeout=TIMEOUT_SECONDS,
+                )
+                logger.info("El modelo %s respondió", model)
+                return response.choices[0].message.content
+            except asyncio.TimeoutError:
+                logger.warning("El modelo %s superó el timeout de %ss, probando el siguiente",
+                               model, TIMEOUT_SECONDS)
+            except Exception:
+                logger.warning("El modelo %s falló, probando el siguiente", model, exc_info=True)
+
+    logger.error("Todos los modelos fallaron")
+    return "[]"
